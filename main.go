@@ -21,7 +21,7 @@ var (
 )
 
 type Movies struct {
-	ID     primitive.ObjectID `json:"id" bson:"id"`
+	ID     primitive.ObjectID `json:"id" bson:"_id,omitempty"`
 	Title  string             `json:"title" bson:"title"`
 	Rating float64            `json:"rating" bson:"rating"`
 }
@@ -32,10 +32,11 @@ func main() {
 	r.Route("/api", func(r chi.Router) {
 		r.Get("/getMovies", handleAllMovies)
 		r.Post("/createMovie", handleCreateMovie)
-		r.Put("/updateMovie/:id", handleUpdateMovie)
+		r.Put("/updateMovie/{id}", handleUpdateMovie)
+		r.Delete("/deleteMovie/{id}", handleDeleteMovie)
 	})
-	http.ListenAndServe(":4839", r)
 	fmt.Print("server running on port 4839")
+	http.ListenAndServe(":4839", r)
 }
 
 func initMongoDB() {
@@ -129,4 +130,22 @@ func handleUpdateMovie(w http.ResponseWriter, r *http.Request) {
 	}
 	json.NewEncoder(w).Encode(updatedMovieResult)
 
+}
+
+func handleDeleteMovie(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	id := chi.URLParam(r, "id")
+	objectID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		http.Error(w, "invalid id provided", http.StatusBadRequest)
+	}
+	result := moviesCollections.FindOneAndDelete(ctx, bson.M{"_id": objectID})
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": "Successfully removed the user",
+		"result":  result,
+	})
 }
